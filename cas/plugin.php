@@ -109,8 +109,9 @@ function cas_is_valid_user( $value ) {
     // TODO: why would this function ever be called more than once?
     // Well sometimes it is, and then we're starting the session twice. ew.
     // session_status is only defined in PHP >= 5.4.0
-    //if ( session_status() === PHP_SESSION_NONE )
-    @session_start();
+    if ( session_status() === PHP_SESSION_NONE ) {
+        @session_start();
+    }
 
     if ( isset( $_SESSION['CAS_AUTH_USER'] ) ) {
         $username = $_SESSION['CAS_AUTH_USER'];
@@ -125,7 +126,21 @@ function cas_is_valid_user( $value ) {
         // display the login screen. We want to hijack that.
         // at this point, we already know that no CAS external auth is available
         if ( PHPCAS_HIJACK_LOGIN ) {
-            header('Location: ' . yourls_site_url() . '/caslogin' );
+
+            // Authenticate right away to avoid
+            // getting stuck in redirect loop
+            require_once PHPCAS_PATH;
+
+            //phpCAS::setDebug();
+            phpCAS::client(CAS_VERSION_2_0, PHPCAS_HOST, PHPCAS_PORT, PHPCAS_CONTEXT);
+            phpCAS::setCasServerCACert(PHPCAS_CERTCHAIN_PATH);
+            phpCAS::forceAuthentication();
+
+            // then set up external-auth cookie
+            // or just use PHP session management
+            session_start();
+            $_SESSION['CAS_AUTH_USER'] = phpCAS::getUser();
+            header('Location: ' . yourls_admin_url( 'index.php' ) );
             die();
         }
     }
